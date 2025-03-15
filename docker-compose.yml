@@ -1,0 +1,82 @@
+version: '3.8'
+
+# networks:
+#   opt-network:
+#     name: s12p11a309_opt-network  # ✅ 실제 네트워크 이름으로 설정
+#     driver: bridge
+
+services:
+  zookeeper:
+    image: wurstmeister/zookeeper:latest
+    container_name: zookeeper
+    # platform: linux/amd64  # ✅ 강제 아키텍처 설정
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    # networks:
+    #   - opt-network
+
+  kafka:
+    image: wurstmeister/kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://kafka:9092
+      # KAFKA_ADVERTISED_HOST_NAME: 127.0.0.1
+      # KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      # SPRING_KAFKA_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CREATE_TOPICS: "business_license_request:1:1,business_license_response:1:1,certificate_request:1:1,certificate_response:1:1"
+    depends_on:
+      - zookeeper
+    # networks:
+    #   - opt-network
+
+  fastapi:
+    build:
+      context: ./opt-fast
+      dockerfile: Dockerfile
+      args:
+        HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN}
+    container_name: fastapi
+    ports:
+      - "8000:8000"
+      - "5000:5000"
+    depends_on:
+      - kafka
+    environment:
+      - BOOTSTRAP_SERVERS=kafka:9092
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
+    # entrypoint: ["uvicorn main:app --host 0.0.0.0 --port 8000"]
+    # networks:
+    #   - opt-network
+
+  spring:
+    build:
+      context: ./opt-back
+      dockerfile: Dockerfile
+    container_name: spring
+    ports:
+      - "8080:8080"
+    depends_on:
+      - kafka
+    environment:
+      spring.kafka.bootstrap-servers: kafka:9092
+      # SPRING_KAFKA_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
+    platform: linux/amd64  # ✅ 아키텍처 강제 설정
+    # networks:
+    #   - opt-network
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]  # 영구 저장 옵션
+    environment:
+      REDIS_PORT: 6379
+      REDIS_DATABASES: 16
+    restart: always  # 컨테이너가 꺼지면 자동 재시작

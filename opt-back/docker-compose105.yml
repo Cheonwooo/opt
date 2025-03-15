@@ -1,0 +1,145 @@
+
+services:
+  mysql:
+    image: mysql:latest
+    container_name: mysql
+    restart: always
+    ports:
+      - "3307:3306"
+    volumes:
+      - /var/lib/mysql:/var/lib/mysql
+    networks:
+      -
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    restart: always
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    networks:
+      -
+
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    restart: always
+    ports:
+      - "27018:27017"
+    volumes:
+      - ./mongo_data:/data/db
+      - /etc/mongod.conf:/etc/mongod.conf
+    networks:
+      -
+
+  backend:
+    build:
+      context: /home/ubuntu/docker/backend-src
+      dockerfile: Dockerfile  # Spring 설정에서 가져옴
+    container_name: backend
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+      - redis
+      - mongo
+      - kafka
+    platform: linux/amd64  # ✅ 아키텍처 강제 설정
+    networks:
+      -
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /home/ubuntu/docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /home/ubuntu/docker/nginx/sites-enabled:/etc/nginx/sites-enabled
+      - /etc/letsencrypt:/etc/letsencrypt:ro  # SSL 인증서 마운트
+      - /var/www/html:/var/www/html  # 웹 루트 마운트
+    depends_on:
+      - backend
+    networks:
+      -
+
+  jenkins:
+    #    image: jenkins/jenkins:jdk21
+    container_name: jenkins
+    build:
+      context: jenkins-dockerfile
+      dockerfile: Dockerfile
+    restart: always
+    user: root
+    ports:
+      - "9090:8080"  # Jenkins 웹 인터페이스 포트
+      - "50000:50000"  # Jenkins 에이전트 포트
+    volumes:
+      - ./jenkins_home:/var/jenkins_home  # Jenkins 데이터 저장 볼륨
+      - /var/run/docker.sock:/var/run/docker.sock  # Jenkins가 Docker 실행 가능하도록 설정
+    networks:
+      -
+
+  zookeeper:
+    image: wurstmeister/zookeeper:latest
+    container_name: zookeeper
+    # platform: linux/amd64  # ✅ 강제 아키텍처 설정
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    networks:
+      -
+
+  kafka:
+    image: wurstmeister/kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CREATE_TOPICS: "business_license_request:1:1,business_license_response:1:1"
+    depends_on:
+      - zookeeper
+    networks:
+      -
+
+  fastapi:
+    build:
+      context: /home/ubuntu/docker/opt-fast
+      dockerfile: Dockerfile
+      args:
+        - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
+    env_file:
+      - /home/ubuntu/docker/.env
+    container_name: fastapi
+    ports:
+      - "8000:8000"
+      - "5000:5000"
+    depends_on:
+      - kafka
+    environment:
+      - BOOTSTRAP_SERVERS=kafka:9092
+    # entrypoint: ["uvicorn main:app --host 0.0.0.0 --port 8000"]
+    volumes:
+      - /home/ubuntu/docker/opt-fast:/app
+    networks:
+      -
+
+networks:
+  opt:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  jenkins_home:

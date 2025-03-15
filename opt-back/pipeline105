@@ -1,0 +1,81 @@
+pipeline {
+    agent any
+
+    environment {
+        JAVA_HOME = "/var/jenkins_home/java-21-openjdk"
+        PATH = "${JAVA_HOME}/bin:${PATH}"
+        GIT_REPO = '깃랩 주소'
+        BRANCH = '클론할 브랜치'
+        EC2_HOST = "도메인"
+        EC2_USER = "ubuntu"
+        BACKEND_IMAGE = "백엔드 이미지"
+        JWT_KEY = credentials('JWT_KEY')
+        MYSQL_PASSWORD = credentials('MYSQL_PASSWORD')
+        MYSQL_USERNAME = credentials('MYSQL_USERNAME')
+        REDIS_HOST = credentials('REDIS_HOST')
+        REDIS_PORT = credentials('REDIS_PORT')
+        S3_ACCESS = credentials('S3_ACCESS')
+        S3_SECRET = credentials('S3_SECRET')
+        S3_BUCKET = credentials('S3_BUCKET')
+        S3_REGION = credentials('S3_REGION')
+        MONGO_HOST=credentials('MONGO_HOST')
+        MONGO_PORT=credentials('MONGO_PORT')
+        MONGO_DATABASE=credentials('MONGO_DATABASE')
+        MONGO_USERNAME=credentials('MONGO_USERNAME')
+        MONGO_PASSWORD=credentials('MONGO_PASSWORD')
+        SPRING_KAFKA_BOOTSTRAP_SERVERS=credentials('SPRING_KAFKA_BOOTSTRAP_SERVERS')
+    }
+
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                sh 'rm -rf ${WORKSPACE}/*'  // 기존 워크스페이스 삭제
+            }
+        }
+
+        stage('git clone repository') {
+            steps {
+                sh 'echo $JAVA_HOME'
+                sh 'java -version'
+                git branch: "${BRANCH}", url: "${GIT_REPO}", credentialsId: 'gitlab-token'
+            }
+        }
+        stage('build') {
+            steps {
+                dir("${WORKSPACE}/backend") {
+                    sh '''
+                    chmod +x gradlew
+                    export JWT_KEY=$JWT_KEY
+                    export MYSQL_USERNAME=$MYSQL_USERNAME
+                    export MYSQL_PASSWORD=$MYSQL_PASSWORD
+                    export REDIS_HOST=$REDIS_HOST
+                    export REDIS_PORT=$REDIS_PORT
+                    export S3_ACCESS=$S3_ACCESS
+                    export S3_SECRET=$S3_SECRET
+                    export S3_BUCKET=$S3_BUCKET
+                    export S3_REGION=$S3_REGION
+                    ./gradlew clean build -x test
+                    '''
+                }
+            }
+        }
+
+        stage('deploy') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'aws-key', keyFileVariable: 'SSH_KEY')]) {
+                    sh '''
+                        echo "Removing existing project files from remote server..."
+                        ssh -i $SSH_KEY -o StrictHostKeyChecking=no "$EC2_USER"@"$EC2_HOST" "rm -rf /home/ubuntu/docker/backend-src/*"
+
+                        scp -i $SSH_KEY -r ${WORKSPACE}/opt-back/* "$EC2_USER"@"$EC2_HOST":/home/ubuntu/docker/backend-src/
+
+                        ssh -i $SSH_KEY -o StrictHostKeyChecking=no "$EC2_USER"@"$EC2_HOST" << 'EOF'
+                        mkdir -p /home/ubuntu/docker/backend-src/src/main/resources
+                        cp /home/ubuntu/S12P11A309/application.properties /home/ubuntu/docker/backend-src/src/main/resources/
+                        /home/ubuntu/docker/deploy.sh
+                    '''
+                }
+            }
+        }
+    }
+}

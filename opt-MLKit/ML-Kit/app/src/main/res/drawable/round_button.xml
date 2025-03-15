@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#FF4081"/> <!-- 버튼 색상 (핑크) -->
+    <size android:width="90dp" android:height="90dp"/> <!-- 크기 조정 -->
+    <corners android:radius="45dp"/> <!-- 원형 버튼 -->
+    <shadowColor android:color="#66000000"/>
+</shape>
