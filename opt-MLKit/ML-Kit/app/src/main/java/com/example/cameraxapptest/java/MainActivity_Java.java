@@ -65,7 +65,7 @@ public class MainActivity_Java extends AppCompatActivity {
     private ActivityMainBinding viewBinding;
     private ExecutorService cameraExecutor;
     private PoseMatcher_Java poseMatcher = new PoseMatcher_Java();
-    private MakePose currentPose;  // 현재 선택된 포즈
+    private MakePose currentPose;
     private TextView tvCount;
 
     public void setPose(MakePose pose) {
@@ -73,24 +73,10 @@ public class MainActivity_Java extends AppCompatActivity {
     }
 
     public void onPoseDetected(Pose pose) {
-//        StringBuilder builder = new StringBuilder();
-//        for (PoseLandmark landmark : pose.getAllPoseLandmarks()) {
-//            builder.append("Landmark type: ")
-//                    .append(landmark.getLandmarkType())
-//                    .append(" LandMark Position: ")
-//                    .append(landmark.getPosition3D())
-//                    .append("\n");
-//        }
-//        Log.e(TAG, builder.toString());
-
         if (currentPose != null) {
             boolean isMatched = poseMatcher.match(pose, currentPose);
-            Log.d(TAG, (isMatched) ? "TRUE!!!!!" : "FALSE@@@@");
             if (isMatched) {
-                Log.d(TAG, ++count + "회!");
                 tvCount.setText(count + "회!");
-            } else {
-                Log.d(TAG, count + "회, 하강 전!!!!!!!");
             }
         }
     }
@@ -100,7 +86,6 @@ public class MainActivity_Java extends AppCompatActivity {
                 if (permissions.values().stream().allMatch(Boolean::booleanValue)) {
                     startCamera();
                 } else {
-                    Toast.makeText(this, "Permissions not granted by the user.", Toast.LENGTH_SHORT).show();
                     finish();
                 }
             });
@@ -119,14 +104,12 @@ public class MainActivity_Java extends AppCompatActivity {
             permissionsLauncher.launch(REQUIRED_PERMISSIONS);
         }
 
-        // 1️⃣ Spinner 초기화
         Spinner exerciseSpinner = findViewById(R.id.exerciseSpinner);
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new ArrayList<>(poseMap.keySet()));
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         exerciseSpinner.setAdapter(adapter);
 
-        // 2️⃣ 선택된 운동 저장 변수
-        final String[] selectedExercise = {adapter.getItem(0)}; // 기본값 설정
+        final String[] selectedExercise = {adapter.getItem(0)};
 
         exerciseSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -149,12 +132,9 @@ public class MainActivity_Java extends AppCompatActivity {
             @Override
             public void run() {
                 if (isPoseDetectionEnabled) {
-                    Log.d(TAG, selectedExercise[0] + "🔍 포즈 감지 실행");
-
-                    // 선택된 운동의 Pose 호출
                     MakePose selectedPose = poseMap.get(selectedExercise[0]);
                     if (selectedPose != null) {
-                        setPose(selectedPose);  // 해당 Pose를 처리하는 메서드
+                        setPose(selectedPose);
                     }
                     handler.postDelayed(this, 100);
                 }
@@ -187,24 +167,19 @@ public class MainActivity_Java extends AppCompatActivity {
             try {
                 ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
 
-                // Preview 설정
                 Preview preview = new Preview.Builder().build();
                 preview.setSurfaceProvider(viewBinding.viewFinder.getSurfaceProvider());
 
-                // Image Analysis 설정 (실시간 포즈 감지)
                 ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                         .build();
 
                 imageAnalysis.setAnalyzer(cameraExecutor, new CameraAnalyzer(poseDetector, this::onPoseDetected));
 
-                // 후면 카메라 선택
                 CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
 
-                // 기존에 바인딩된 UseCase 해제
                 cameraProvider.unbindAll();
 
-                // UseCase를 카메라에 바인딩
                 cameraProvider.bindToLifecycle(
                         this, cameraSelector, preview, imageAnalysis
                 );
@@ -221,6 +196,4 @@ public class MainActivity_Java extends AppCompatActivity {
         super.onDestroy();
         cameraExecutor.shutdown();
     }
-
-
 }

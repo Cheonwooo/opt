@@ -24,26 +24,18 @@ public class OSign implements MakePose {
 
     @Override
     public boolean isCount(double startAngle, double endAngle, double angle, Pose pose, int index) {
-        Log.d("123123", "인덱스 : " + index);
 
         // 각 TargetShape별 isBend 초기화 (없으면 false로 기본값 설정)
         isBendMap.putIfAbsent(index, false);
         boolean isBend = isBendMap.get(index);
 
-        Log.d("IsBend", "📌 TargetShape: " + index + ", isBend 상태: " + isBend);
-        Log.d("IsBend", "현재 각도: " + angle + " (startAngle: " + startAngle + ", endAngle: " + endAngle + ")");
-
         if (!isBend && angle <= startAngle) {
-            Log.d("IsBend", "🌀 [" + index + "] 팔을 굽히기 시작! -> isBend = true");
             isBendMap.put(index, true);
-        }
-        else if (isBend && angle >= endAngle) {
-            Log.d("IsBend", "🚀 [" + index + "] 팔을 폈음! -> isBend = false, 카운트 증가!");
+        } else if (isBend && angle >= endAngle) {
             isBendMap.put(index, false);
             return true;
         }
 
-        Log.d("IsBend", "⏳ [" + index + "] isBend 유지됨 (현재 상태: " + isBend + ")");
         return false;
     }
 

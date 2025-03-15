@@ -40,9 +40,9 @@ public class CameraAnalyzer implements ImageAnalysis.Analyzer {
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastDetectionTime < 100) {
             imageProxy.close();
-            return;  // 0.5초가 지나지 않았으면 감지하지 않음
+            return;
         }
-        lastDetectionTime = currentTime; // 감지 시간 업데이트
+        lastDetectionTime = currentTime;
 
         Image mediaImage = imageProxy.getImage();
         if (mediaImage == null) {
